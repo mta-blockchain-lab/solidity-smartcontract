@@ -72,7 +72,7 @@ contract OpenDegrees is Ownable {
   /// A mapping of the degree hash to the block number that was issued
   mapping(string => string) documentIssued;
   /// A mapping of the hash of the claim being revoked to the revocation block number
-  mapping(string => string) documentRevoked;
+  mapping(string => bool) documentRevoked;
   ///   A mapping of the address account to the school code
   mapping(address=>string) universityAddressList;
   
@@ -120,32 +120,45 @@ contract OpenDegrees is Ownable {
     emit DocumentIssued(string(b));
   }
   
-  function isUniversity(address _address) public view returns(bool) {
-        bytes memory tempEmptyStringTest = bytes(universityAddressList[_address]); // Uses memory
-        if (tempEmptyStringTest.length == 0) {
-            // emptyStringTest is an empty string
-            return false;
-        } else {
-            // emptyStringTest is not an empty string
-            return true;
-        }
+   function revokeDegree(
+    string memory degree_number) public onlyUniversity(msg.sender) onlyCanRevoke(degree_number)
+  {
+    string memory index = universityAddressList[msg.sender];
+    bytes memory b;
+    b = abi.encodePacked(index);
+    b = abi.encodePacked(b, degree_number);
+    documentRevoked[string(b)] = true;
+    // Degrees[degree_number].hash=hash;
+    // Degrees[degree_number].universityCode = universityAddressList[msg.sender];
+    emit DocumentRevoked(string(b));
   }
   
-  function isAdded(string memory _code) public view returns(bool){
-        bool  tempEmptyStringTest = bool(universityList[_code]); // Uses memory
-        if (tempEmptyStringTest == false) {
-            // emptyStringTest is an empty string
-            return false;
-        } else {
-            // emptyStringTest is not an empty string
-            return true;
-        }
-  }
+
+  
+
 
   
   
   
-  function isIssued(
+  
+  
+  function verify(string memory _degree_number, string memory _hash, string memory universityCode) public view returns(uint256){
+        bytes memory b;
+        b = abi.encodePacked(universityCode);
+        b = abi.encodePacked(b, _degree_number);
+      if (keccak256(abi.encodePacked(documentIssued[string(b)])) == keccak256(abi.encodePacked(_hash))){
+           if (documentRevoked[string(b)] ==true){
+                return 2;
+           }else{
+               return 1;
+           }
+      }
+      else{
+          return 0;
+      }
+  }
+
+function isIssued(
     string memory degree_number
   ) private view returns (bool)
   {
@@ -163,39 +176,41 @@ contract OpenDegrees is Ownable {
 }
    
   }
-  
-  function verify(string memory _degree_number, string memory _hash, string memory universityCode) public view returns(bool){
-        bytes memory b;
-        b = abi.encodePacked(universityCode);
-        b = abi.encodePacked(b, _degree_number);
-      if (keccak256(abi.encodePacked(documentIssued[string(b)])) == keccak256(abi.encodePacked(_hash))){
-          return true;
-      }
-      else{
-          return false;
-      }
-  }
-
-
  
-
-  modifier onlyIssued(string memory degree_number, string memory universityCode) {
-    // string memory index = universityAddressList[msg.sender];
-    bytes memory b;
-    b = abi.encodePacked(universityCode);
-    b = abi.encodePacked(b, degree_number);
-      
-    require(isIssued(string(b)), "Error: Only issued degree_number hashes can be revoked");
+  
+  modifier onlyCanRevoke(string memory degree_number){
+    require(isIssued(string(degree_number)), "Error: Only issued degree can be revoked");
     _;
   }
 
   modifier onlyNotIssued(string memory degree_number) {
-    string memory index = universityAddressList[msg.sender];
-    bytes memory b;
-    b = abi.encodePacked(index);
-    b = abi.encodePacked(b, degree_number);
-    require(!isIssued(string(b)), "Error: Only hashes that have not been issued can be issued");
+    require(!isIssued(string(degree_number)), "Error: Only degree with degree number that have not been issued can be issued");
     _;
+  }
+  
+  
+  
+  
+function isAdded(string memory _code) public view returns(bool){
+        bool  tempEmptyStringTest = bool(universityList[_code]); // Uses memory
+        if (tempEmptyStringTest == false) {
+            // emptyStringTest is an empty string
+            return false;
+        } else {
+            // emptyStringTest is not an empty string
+            return true;
+        }
+  }
+  
+    function isUniversity(address _address) public view returns(bool) {
+        bytes memory tempEmptyStringTest = bytes(universityAddressList[_address]); // Uses memory
+        if (tempEmptyStringTest.length == 0) {
+            // emptyStringTest is an empty string
+            return false;
+        } else {
+            // emptyStringTest is not an empty string
+            return true;
+        }
   }
   
   modifier onlyNotAdded(string memory code){
