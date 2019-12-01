@@ -1,8 +1,4 @@
-/**
- *Submitted for verification at Etherscan.io on 2018-12-05
-*/
-
-pragma solidity ^0.5.0;
+pragma solidity ^ 0.5 .0;
 
 
 /**
@@ -37,16 +33,6 @@ contract Ownable {
     _;
   }
 
-  /**
-   * @dev Allows the current owner to relinquish control of the contract.
-   * @notice Renouncing to ownership will leave the contract without an owner.
-   * It will not be possible to call the functions with the `onlyOwner`
-   * modifier anymore.
-   */
-  function renounceOwnership() public onlyOwner {
-    emit OwnershipRenounced(owner);
-    owner = address(0);
-  }
 
   /**
    * @dev Allows the current owner to transfer control of the contract to a newOwner.
@@ -68,164 +54,208 @@ contract Ownable {
 }
 
 
-contract OpenDegrees is Ownable {
-  /// A mapping of the degree hash to the block number that was issued
-  mapping(string => string) documentIssued;
-  /// A mapping of the hash of the claim being revoked to the revocation block number
-  mapping(string => bool) documentRevoked;
-  ///   A mapping of the address account to the school code
-  mapping(address=>string) universityAddressList;
-  
-  mapping(string=>bool) universityList;
-  
-  struct Degree{
-      string serial_number;
-      string hash;
-      string universityCode;
-  }
-  
-  mapping(string=>Degree) Degrees;
+contract OpenDegreeList is Ownable {
+  // Danh sách các văn bằng đã được thêm
+  mapping(string => string) degreeIssued;
+
+  // Danh sách các văn bằng đã bị thu hồi
+  mapping(string => bool) degreeRevoked;
+
+  // Danh sách các địa chỉ trường Đại học được thêm
+  mapping(address => string) universityAddressList;
+
+  // Danh sách các mã trường Đại học được thêm
+  mapping(string => address) universityCodeList;
 
 
 
-  event DocumentIssued(string indexed degree_number);
-  
-  event DocumentRevoked(
+
+  // Sự kiện sau khi cấp văn bằng
+  event DegreeIssued(
     string indexed degree_number
   );
-  
-  event UniversityAdded(string indexed code);
 
-  function addUniversity(address universityAddress, string memory code) public onlyNotAdded(code) onlyNotUniversity(universityAddress) returns(bool) {
-    if (msg.sender==owner){
-        universityAddressList[universityAddress]=code;
-        universityList[code]=true;
-        emit UniversityAdded(code);
-        return true;
+  // Sự kiện sau khi thu hồi văn bằng
+  event DegreeRevoked(
+    string indexed degree_number
+  );
+
+  // Sự kiện sau khi thêm trường Đại học.
+  event UniversityAdded(
+    string indexed code
+  );
+
+  // Hàm: Thêm trường đại học.
+  function addUniversity(address universityAddress, string memory code) public onlyUniversityAddressCodeNotAdded(code) onlyNotUniversityAddress(universityAddress) returns(bool) {
+    if (msg.sender == owner) {
+      universityAddressList[universityAddress] = code;
+      universityCodeList[code] = universityAddress;
+      emit UniversityAdded(code);
+      // Báo thành công
+      return true;
     }
+    // Báo lỗi
     return false;
-}
+  }
 
+  // Hàm: Thêm văn bằng
   function addDegree(
     string memory degree_number, string memory hash
-  ) public onlyUniversity(msg.sender) onlyNotIssued(degree_number)
-  {
+  ) public onlyUniversityAddress(msg.sender) onlyDegreeNotIssued(degree_number) {
+    // Xử lý string để tạo ra index của văn bằng = <mã trường><mã bằng>
     string memory index = universityAddressList[msg.sender];
     bytes memory b;
     b = abi.encodePacked(index);
     b = abi.encodePacked(b, degree_number);
-    documentIssued[string(b)] = hash;
-    // Degrees[degree_number].hash=hash;
-    // Degrees[degree_number].universityCode = universityAddressList[msg.sender];
-    emit DocumentIssued(string(b));
-  }
-  
-   function revokeDegree(
-    string memory degree_number) public onlyUniversity(msg.sender) onlyCanRevoke(degree_number)
-  {
-    string memory index = universityAddressList[msg.sender];
-    bytes memory b;
-    b = abi.encodePacked(index);
-    b = abi.encodePacked(b, degree_number);
-    documentRevoked[string(b)] = true;
-    // Degrees[degree_number].hash=hash;
-    // Degrees[degree_number].universityCode = universityAddressList[msg.sender];
-    emit DocumentRevoked(string(b));
-  }
-  
-
-  
-
-
-  
-  
-  
-  
-  
-  function verify(string memory _degree_number, string memory _hash, string memory universityCode) public view returns(uint256){
-        bytes memory b;
-        b = abi.encodePacked(universityCode);
-        b = abi.encodePacked(b, _degree_number);
-      if (keccak256(abi.encodePacked(documentIssued[string(b)])) == keccak256(abi.encodePacked(_hash))){
-           if (documentRevoked[string(b)] ==true){
-                return 2;
-           }else{
-               return 1;
-           }
-      }
-      else{
-          return 0;
-      }
+    degreeIssued[string(b)] = hash;
+    emit DegreeIssued(string(b));
   }
 
-function isIssued(
+  // Hàm: thu hồi văn bằng
+  function revokeDegree(
     string memory degree_number
-  ) private view returns (bool)
-  {
-        string memory index = universityAddressList[msg.sender];
+  ) public onlyUniversityAddress(msg.sender) onlyDegreeNotRevokedCanRevoked(degree_number) onlyDegreeIssuedCanRevoked(degree_number) {
+    string memory index = universityAddressList[msg.sender];
     bytes memory b;
     b = abi.encodePacked(index);
     b = abi.encodePacked(b, degree_number);
-        bytes memory tempEmptyStringTest = bytes(documentIssued[string(b)]); // Uses memory
-        if (tempEmptyStringTest.length == 0) {
-    // emptyStringTest is an empty string
-    return false;
-} else {
-    // emptyStringTest is not an empty string
-    return true;
-}
-   
+    degreeRevoked[string(b)] = true;
+
+    emit DegreeRevoked(string(b));
   }
- 
-  
-  modifier onlyCanRevoke(string memory degree_number){
-    require(isIssued(string(degree_number)), "Error: Only issued degree can be revoked");
+
+
+
+  // Phương thức: xác minh văn bằng
+  function verify(string memory _degree_number, string memory _hash, string memory universityCode) public view returns(uint256) {
+    bytes memory b;
+    b = abi.encodePacked(universityCode);
+    b = abi.encodePacked(b, _degree_number);
+    if (keccak256(abi.encodePacked(degreeIssued[string(b)])) == keccak256(abi.encodePacked(_hash))) {
+      if (degreeRevoked[string(b)]) {
+        // Văn bằng đã bị thu hồi
+        return 2;
+      }
+      // Văn bằng khả dụng
+      return 1;
+    } else {
+      // Văn bằng không hợp lệ.
+      return 0;
+    }
+  }
+
+  // Kiểm tra: địa chỉ có phải địa chỉ của trường Đại học không? 
+  function isUniversity(address _address) private view returns(bool) {
+    bytes memory tempEmptyStringTest = bytes(universityAddressList[_address]);
+    if (tempEmptyStringTest.length == 0) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  // Kiểm tra: mã có phải là mã của trường Đại học không?
+  function isUniversityCode(string memory _code) private view returns(bool) {
+    address tmp_address = address(universityCodeList[_code]);
+    if (tmp_address != address(0)) {
+
+      return true;
+    } else {
+
+      return false;
+    }
+  }
+
+
+  // Lấy mã của trường Đại học.
+  function getUniversityCode(address _university_address) public view returns(string memory) {
+    string memory tmp = universityAddressList[_university_address];
+    return tmp;
+  }
+
+  // Kiểm tra văn bằng đã được cấp chưa?
+  function isDegreeIssued(
+    string memory degree_number
+  ) private view returns(bool) {
+
+    bytes memory tempEmptyStringTest = bytes(degreeIssued[degree_number]); // Uses memory
+    if (tempEmptyStringTest.length == 0) {
+      return false;
+    } else {
+      return true;
+    }
+
+  }
+
+  // Kiểm tra văn bằng đã được thu hồi chưa?
+  function isDegreeRevoked(
+    string memory degree_number
+  ) private view returns(bool) {
+
+
+    return degreeRevoked[degree_number];
+
+  }
+
+
+
+  // Chỉ văn bằng đã được cấp mới có thể thu hồi.
+  modifier onlyDegreeIssuedCanRevoked(string memory degree_number) {
+    string memory index = universityAddressList[msg.sender];
+    bytes memory b;
+    b = abi.encodePacked(index);
+    b = abi.encodePacked(b, degree_number);
+    require(isDegreeIssued(string(b)), "Lỗi: Chỉ văn bằng được đưa lên mới có thể thêm");
     _;
   }
 
-  modifier onlyNotIssued(string memory degree_number) {
-    require(!isIssued(string(degree_number)), "Error: Only degree with degree number that have not been issued can be issued");
+  //Chỉ văn bằng chưa bị thu hồi mới có thể bị thu hồi. 
+  modifier onlyDegreeNotRevokedCanRevoked(string memory degree_number) {
+    string memory index = universityAddressList[msg.sender];
+    bytes memory b;
+    b = abi.encodePacked(index);
+    b = abi.encodePacked(b, degree_number);
+    require(!isDegreeRevoked(string(b)), "Lỗi: Chỉ văn bằng chưa bị thu hồi mới có thể  thu hồi");
     _;
   }
-  
-  
-  
-  
-function isAdded(string memory _code) public view returns(bool){
-        bool  tempEmptyStringTest = bool(universityList[_code]); // Uses memory
-        if (tempEmptyStringTest == false) {
-            // emptyStringTest is an empty string
-            return false;
-        } else {
-            // emptyStringTest is not an empty string
-            return true;
-        }
+
+  // Chỉ văn bằng đã được cấp
+  modifier onlyDegreeIssued(string memory degree_number, string memory universityCode) {
+    // string memory index = universityAddressList[msg.sender];
+    bytes memory b;
+    b = abi.encodePacked(universityCode);
+    b = abi.encodePacked(b, degree_number);
+
+    require(isDegreeIssued(string(b)), "Lỗi: Chỉ văn bằng đã được thêm mới có thể thu hồi.");
+    _;
   }
-  
-    function isUniversity(address _address) public view returns(bool) {
-        bytes memory tempEmptyStringTest = bytes(universityAddressList[_address]); // Uses memory
-        if (tempEmptyStringTest.length == 0) {
-            // emptyStringTest is an empty string
-            return false;
-        } else {
-            // emptyStringTest is not an empty string
-            return true;
-        }
+
+  // Chỉ văn bằng chưa được cấp
+  modifier onlyDegreeNotIssued(string memory degree_number) {
+    string memory index = universityAddressList[msg.sender];
+    bytes memory b;
+    b = abi.encodePacked(index);
+    b = abi.encodePacked(b, degree_number);
+    require(!isDegreeIssued(string(b)), "Lỗi: Chỉ văn bằng  chưa được đưa lên mới có thể thêm");
+    _;
   }
-  
-  modifier onlyNotAdded(string memory code){
-      require(!isAdded(code), "Error: Univeristy code have been added");
-      _;
+
+  // Chỉ mã trường chưa được thêm.
+  modifier onlyUniversityAddressCodeNotAdded(string memory code) {
+    require(!isUniversityCode(code), "Lỗi: Mã trường bị trùng");
+    _;
   }
-  
-  modifier onlyNotUniversity(address univeristyAddress){
-      require(!isUniversity(univeristyAddress), "Error: Address already assigned for university");
-      _;
+
+  // Chỉ địa chỉ trường chưa được thêm.
+  modifier onlyNotUniversityAddress(address univeristyAddress) {
+    require(!isUniversity(univeristyAddress), "Lỗi: Mỗi địa chỉ chỉ có thể đăng ký 1 trường");
+    _;
   }
-  
-  modifier onlyUniversity(address univeristyAddress){
-      require(isUniversity(univeristyAddress), "Error: Only University can issued degree");
-      _;
+
+  // Chỉ địa chỉ của trường Đại học.
+  modifier onlyUniversityAddress(address univeristyAddress) {
+    require(isUniversity(univeristyAddress), "Lỗi: Bạn không phải là trường, bạn không có quyền thực hiện thao tác này");
+    _;
   }
- 
+
 }
